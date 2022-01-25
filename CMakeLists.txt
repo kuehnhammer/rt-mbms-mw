@@ -8,6 +8,8 @@ include(FindPkgConfig)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+option(ENABLE_RAPTOR10    "Enable support for Raptor10 FEC in libflute"     OFF)
+
 set(CMAKE_CXX_FLAGS_DEBUG_INIT "-Wall -Wextra -Werror -g3")
 set(CMAKE_CXX_FLAGS_RELEASE_INIT "-Wall -O3")
 
@@ -27,9 +29,11 @@ include_directories(
 
     SYSTEM
     ${SPDLOG_INCLUDEDIR}
+    ${PROJECT_SOURCE_DIR}/lib/gzip-hpp/include
     PkgConfig::GMIME
     PkgConfig::TINYXML
     )
+
 
 configure_file("include/Version.h.in" "Version.h")
 
@@ -57,7 +61,6 @@ target_link_libraries( mw
     PkgConfig::GMIME
     PkgConfig::TINYXML
 )
-
 
 install(TARGETS mw)
 install(FILES supporting_files/5gmag-rt-mw.service DESTINATION /usr/lib/systemd/system)

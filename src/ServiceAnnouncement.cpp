@@ -29,6 +29,7 @@
 #include "gmime/gmime.h" 
 #include "tinyxml2.h" 
 #include "cpprest/base_uri.h"
+#include <gzip/decompress.hpp>
 
 
 MBMS_RT::ServiceAnnouncement::ServiceAnnouncement(const libconfig::Config& cfg, std::string tmgi, const std::string& mcast, 
@@ -54,7 +55,7 @@ MBMS_RT::ServiceAnnouncement::ServiceAnnouncement(const libconfig::Config& cfg, 
   _mcast_port = mcast.substr(delim + 1);
   spdlog::info("Starting FLUTE receiver on {}:{} for TSI {}", _mcast_addr, _mcast_port, _tsi); 
   _flute_thread = std::thread{[&](){
-    _flute_receiver = std::make_unique<LibFlute::Receiver>(_iface, _mcast_addr, atoi(_mcast_port.c_str()), _tsi, io_service) ;
+    _flute_receiver = std::make_unique<LibFlute::Receiver>(_iface, _mcast_addr, atoi(_mcast_port.c_str()), _tsi, io_service, false) ;
 
     /*
     _flute_receiver->register_progress_callback(
@@ -72,6 +73,10 @@ MBMS_RT::ServiceAnnouncement::ServiceAnnouncement(const libconfig::Config& cfg, 
           _toi = file->meta().toi;
           _raw_content = std::string(file->buffer());
           parse_bootstrap(file->buffer());
+        } else if (file->meta().content_location == "bootstrap.multipart.gz" && (!_bootstrapped || _toi != file->meta().toi)) {
+          _toi = file->meta().toi;
+          _raw_content = gzip::decompress(file->buffer(), file->length());
+          parse_bootstrap(_raw_content);
         }
       });
   }};

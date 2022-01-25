@@ -145,6 +145,12 @@ void MBMS_RT::RestHandler::get(http_request message) {
             n["name"] = value(name.second);
             names.push_back(n);
           }
+          if (!names.size()) {
+            value n;
+            n["lang"] = value("");
+            n["name"] = value("<Unnamed Service>");
+            names.push_back(n);
+          }
           ser["names"] = value::array(names);
           ser["protocol"] = value(s->delivery_protocol_string());
           ser["manifest_path"] = value(s->manifest_path());
