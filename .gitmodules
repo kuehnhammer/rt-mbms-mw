@@ -1,6 +1,6 @@
 [submodule "lib/libflute"]
 	path = lib/libflute
-	url = ../libflute.git
+	url = ../rt-libflute.git
 [submodule "lib/gzip-hpp"]
 	path = lib/gzip-hpp
 	url = https://github.com/mapbox/gzip-hpp.git
