@@ -3,4 +3,4 @@
 	url = ../libflute.git
 [submodule "lib/gzip-hpp"]
 	path = lib/gzip-hpp
-	url = git@github.com:mapbox/gzip-hpp.git
+	url = https://github.com/mapbox/gzip-hpp.git
