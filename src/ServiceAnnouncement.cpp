@@ -73,7 +73,10 @@ MBMS_RT::ServiceAnnouncement::ServiceAnnouncement(const libconfig::Config& cfg, 
           _toi = file->meta().toi;
           _raw_content = std::string(file->buffer());
           parse_bootstrap(file->buffer());
-        } else if (file->meta().content_location == "bootstrap.multipart.gz" && (!_bootstrapped || _toi != file->meta().toi)) {
+        } else if (
+            ( file->meta().content_location == "sa_multipart.gz" || file->meta().content_location == "bootstrap.multipart.gz" ) && 
+            (!_bootstrapped || _toi != file->meta().toi) 
+            ) {
           _toi = file->meta().toi;
           _raw_content = gzip::decompress(file->buffer(), file->length());
           parse_bootstrap(_raw_content);
@@ -176,6 +179,7 @@ auto MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string& str) -> vo
       try {
         tinyxml2::XMLDocument doc;
         doc.Parse(item.content.c_str());
+        spdlog::trace("Service Announcemnt content:\n{}", item.content.c_str());
 
         auto bundle = doc.FirstChildElement("bundleDescription");
         for(auto* usd = bundle->FirstChildElement("userServiceDescription"); 
@@ -197,8 +201,9 @@ auto MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string& str) -> vo
             service->add_name(namestr, lang);
           }
 
-          // parse the appService element
+          // parse the r12 appService element
           auto app_service = usd->FirstChildElement("r12:appService");
+	  if (app_service) {
           service->set_delivery_protocol_from_mime_type(app_service->Attribute("mimeType"));
 
           for (const auto& item : _items) {
@@ -288,6 +293,27 @@ auto MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string& str) -> vo
               service->add_and_start_content_stream(cs);
             }
           }
+	  } else {
+            bool have_delivery_method = false;
+            auto cs = std::make_shared<ContentStream>("", _iface, _io_service, _cache, service->delivery_protocol(), _cfg);
+            for(auto* delivery_method = usd->FirstChildElement("deliveryMethod"); 
+                delivery_method != nullptr; 
+                delivery_method = delivery_method->NextSiblingElement("deliveryMethod")) {
+              auto sdp_uri = delivery_method->Attribute("sessionDescriptionURI");
+
+                for (const auto& item : _items) {
+            //      if (item.uri == broadcast_base_pattern) {
+            //        cs->read_master_manifest(item.content);
+                  if (item.content_type == "application/sdp") {
+                    have_delivery_method = cs->configure_5gbc_delivery_from_sdp(item.content);
+                  }
+                }
+            }
+            if (have_delivery_method) {
+              service->add_and_start_content_stream(cs);
+            }
+	  }
+
 
           if (is_new_service && service->content_streams().size() > 0) {
             _set_service(service_id, service);
