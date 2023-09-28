@@ -94,6 +94,15 @@ MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string &str) -> void {
 
   // Add all the SA items including their content to _items
   _addServiceAnnouncementItems(str);
+  
+  // Make all items available for download from the cache
+  // This is needed for DASH, where master manifest and init segments are
+  // no longer transmitted through FLUTE by the BSCC
+  for (const auto &item: _items) {
+      _cache.add_item(std::make_shared<CachedFile>(
+          item.uri, 0, item.content)
+      );
+  }
 
   // Parse MBMS envelope: <metadataEnvelope>
   for (const auto &item: _items) {

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 #set project name and version
-project (mw VERSION 0.10.0)
+project (mw VERSION 0.11.0)
 
 # Configure the project for testing with CTest/CDash
 include(CTest)
@@ -67,6 +67,8 @@ target_link_libraries( mw
     cpprestsdk::cpprest
     flute
     z
+    ssl
+    crypt
     PkgConfig::GMIME
     PkgConfig::TINYXML
 )

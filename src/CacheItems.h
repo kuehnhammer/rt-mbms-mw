@@ -71,15 +71,22 @@ namespace MBMS_RT {
         : CacheItem( content_location, received_at ) 
         , _file( file ) 
         {}
+      CachedFile(const std::string& content_location, unsigned long received_at,
+          std::string content)
+        : CacheItem( content_location, received_at ) 
+        , _file( nullptr ) 
+        , _content( content ) 
+        {}
       virtual ~CachedFile() = default;
 
       virtual ItemType item_type() const { return ItemType::File; };
-      virtual char* buffer() const { return _file->buffer(); };
-      virtual uint32_t content_length() const { return _file->length(); };
+      virtual char* buffer() const { return _file ? _file->buffer() : const_cast<char*>(_content.c_str()); };
+      virtual uint32_t content_length() const { return _file ? _file->length() : _content.length(); };
       virtual ItemSource item_source() const { return ItemSource::Broadcast; };
 
     private:
       std::shared_ptr<LibFlute::File> _file;
+      std::string _content = {};
   };
   class CachedSegment : public CacheItem {
     public:
