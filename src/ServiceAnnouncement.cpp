@@ -99,9 +99,15 @@ MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string &str) -> void {
   // This is needed for DASH, where master manifest and init segments are
   // no longer transmitted through FLUTE by the BSCC
   for (const auto &item: _items) {
-      _cache.add_item(std::make_shared<CachedFile>(
-          item.uri, 0, item.content)
-      );
+    web::uri uri(item.uri);
+    auto path = uri.path();
+    // make relative path: remove leading /
+    if (path[0] == '/') {
+      path.erase(0, 1);
+    }
+    _cache.add_item(std::make_shared<CachedFile>(
+          path, 0, item.content)
+        );
   }
 
   // Parse MBMS envelope: <metadataEnvelope>
