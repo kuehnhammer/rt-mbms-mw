@@ -86,9 +86,9 @@ namespace MBMS_RT {
       boost::asio::io_service& _io_service;
       CacheManagement& _cache;
 
-      std::string _resolution;
-      std::string _codecs;
-      unsigned long _bandwidth;
-      double _frame_rate;
+      std::string _resolution = "<unknown>";
+      std::string _codecs = "<unknown>";
+      unsigned long _bandwidth = 0;
+      double _frame_rate = 0;
   };
 }

@@ -139,6 +139,10 @@ auto MBMS_RT::ContentStream::read_master_manifest(const std::string &manifest) -
     if (pl.streams().size() == 1) {
       auto stream = pl.streams()[0];
       _playlist_path = stream.uri;
+      set_resolution(stream.resolution);
+      set_codecs(stream.codecs);
+      set_bandwidth(stream.bandwidth);
+      set_frame_rate(stream.frame_rate);
     } else {
       spdlog::error("Error: HLS primary playlist for stream contains more than one stream definitions. Ignoring.");
     }
