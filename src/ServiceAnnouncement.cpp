@@ -33,7 +33,7 @@
 #include <gzip/decompress.hpp>
 
 
-MBMS_RT::ServiceAnnouncement::ServiceAnnouncement(const libconfig::Config &cfg, std::string tmgi,
+MBMS_RT::ServiceAnnouncement::ServiceAnnouncement(const libconfig::Config &cfg, std::string tmgi, //NOLINT
                                                   const std::string &mcast,
                                                   unsigned long long tsi, std::string iface,
                                                   boost::asio::io_service &io_service, CacheManagement &cache,

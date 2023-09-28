@@ -38,7 +38,9 @@ MBMS_RT::SeamlessContentStream::SeamlessContentStream(std::string base, std::str
 MBMS_RT::SeamlessContentStream::~SeamlessContentStream() {
   spdlog::debug("Destroying seamless content stream at base {}", _base);
   _running = false;
-  _timer.cancel();
+  try {
+    _timer.cancel();
+  } catch(...) {}
 }
 
 auto MBMS_RT::SeamlessContentStream::flute_file_received(std::shared_ptr<LibFlute::File> file) -> void {

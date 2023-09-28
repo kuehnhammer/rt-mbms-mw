@@ -23,6 +23,8 @@
 #include "spdlog/spdlog.h"
 #include "cpprest/base_uri.h"
 
+using namespace boost::placeholders;
+
 MBMS_RT::ContentStream::ContentStream(std::string base, std::string flute_if, boost::asio::io_service &io_service,
                                       CacheManagement &cache, DeliveryProtocol protocol, const libconfig::Config &cfg)
     : _5gbc_stream_iface(std::move(flute_if)), _cfg(cfg), _delivery_protocol(protocol), _base(std::move(base)),

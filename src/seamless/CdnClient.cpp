@@ -31,7 +31,7 @@ MBMS_RT::CdnClient::CdnClient(const std::string& base_url)
   _client = std::make_unique<http_client>(base_url);
 }
 
-auto MBMS_RT::CdnClient::get(const std::string& path, std::function<void(std::shared_ptr<CdnFile>)> completion_cb) -> void
+auto MBMS_RT::CdnClient::get(const std::string& path, const std::function<void(std::shared_ptr<CdnFile>)>& completion_cb) -> void
 {
   spdlog::debug("Cdn client requesting {}", path);
   try {

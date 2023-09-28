@@ -21,7 +21,7 @@
 #include "spdlog/spdlog.h"
 
 MBMS_RT::Segment::Segment(std::string content_location,
-    int seq, double extinf)
+    int seq, double extinf) //NOLINT
   : _content_location( std::move(content_location) )
   , _seq(seq)
   , _extinf(extinf)

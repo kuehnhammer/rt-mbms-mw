@@ -27,7 +27,7 @@ namespace MBMS_RT {
       CdnClient(const std::string& base_url);
       virtual ~CdnClient() = default;
 
-      void get(const std::string& path, std::function<void(std::shared_ptr<CdnFile>)> completion_cb);
+      void get(const std::string& path, const std::function<void(std::shared_ptr<CdnFile>)>& completion_cb);
 
     private:
       std::unique_ptr<web::http::client::http_client> _client;

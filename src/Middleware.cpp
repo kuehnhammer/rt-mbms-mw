@@ -17,6 +17,8 @@
 #include "Middleware.h"
 #include "spdlog/spdlog.h"
 
+using namespace boost::placeholders;
+
 /**
  *
  * @param io_service
@@ -24,9 +26,9 @@
  * @param api_url
  * @param iface
  */
-MBMS_RT::Middleware::Middleware(boost::asio::io_service &io_service, const libconfig::Config &cfg,
-                                const std::string &api_url,
-                                const std::string &iface)
+MBMS_RT::Middleware::Middleware(boost::asio::io_service &io_service, const libconfig::Config &cfg, //NOLINT
+                                const std::string &api_url, // NOLINT
+                                const std::string &iface) // NOLINT
     : _rp(cfg), _control(cfg), _cache(cfg, io_service), _api(cfg, api_url, _cache, &_service_announcement, _services),
       _tick_interval(1), _timer(io_service, _tick_interval), _control_timer(io_service, _control_tick_interval),
       _cfg(cfg), _interface(iface), _io_service(io_service) {
@@ -71,9 +73,9 @@ auto MBMS_RT::Middleware::_handle_local_service_announcement() -> bool {
 
       _service_announcement = std::make_unique<MBMS_RT::ServiceAnnouncement>(_cfg, tmgi, mcast_address, 0, _interface,
                                                                              _io_service, _cache, _seamless,
-                                                                             boost::bind(&Middleware::get_service, this,
+                                                                             boost::bind(&Middleware::get_service, this, //NOLINT
                                                                                          _1),  //NOLINT
-                                                                             boost::bind(&Middleware::set_service, this,
+                                                                             boost::bind(&Middleware::set_service, this, //NOLINT
                                                                                          _1, _2)); //NOLINT
       _service_announcement->parse_bootstrap(sa_multipart);
 
@@ -103,9 +105,9 @@ void MBMS_RT::Middleware::tick_handler() {
         _service_announcement = std::make_unique<MBMS_RT::ServiceAnnouncement>(_cfg, tmgi, dest, tsi, _interface,
                                                                                _io_service,
                                                                                _cache, _seamless,
-                                                                               boost::bind(&Middleware::get_service,
+                                                                               boost::bind(&Middleware::get_service, //NOLINT
                                                                                            this, _1),
-                                                                               boost::bind(&Middleware::set_service,
+                                                                               boost::bind(&Middleware::set_service, //NOLINT
                                                                                            this, _1, _2)); //NOLINT
         _service_announcement->start_flute_receiver(dest);
       }

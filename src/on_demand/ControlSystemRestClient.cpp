@@ -54,8 +54,9 @@ auto MBMS_RT::ControlSystemRestClient::sendHello(double cinr, const std::vector<
   req["long"] = value(0);
 
   std::vector<web::json::value> services;
+  services.resize(service_tmgis.size());
   for (const auto& tmgi : service_tmgis) {
-    services.push_back(value(tmgi));
+    services.emplace_back(value(tmgi));
   }
   req["services"] = web::json::value::array(/*services*/);
 

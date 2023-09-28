@@ -22,7 +22,7 @@
 #include <iomanip>
 #include <sstream>
 
-MBMS_RT::HlsPrimaryPlaylist::HlsPrimaryPlaylist(const std::string& content, const std::string& base_path)
+MBMS_RT::HlsPrimaryPlaylist::HlsPrimaryPlaylist(const std::string& content, const std::string& base_path) //NOLINT
 {
   spdlog::debug("Parsing HLS primary playlist: {}", content);
 
