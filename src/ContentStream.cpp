@@ -19,16 +19,28 @@
 #include "ContentStream.h"
 #include "CacheItems.h"
 #include "HlsPrimaryPlaylist.h"
+#include "PcapReceiver.h"
+#include <boost/bind/bind.hpp>
 
 #include "spdlog/spdlog.h"
-#include "cpprest/base_uri.h"
+#include "Poco/URI.h"
+#include <array>
 
 using namespace boost::placeholders;
 
-MBMS_RT::ContentStream::ContentStream(std::string base, std::string flute_if, boost::asio::io_service &io_service,
-                                      CacheManagement &cache, DeliveryProtocol protocol, const libconfig::Config &cfg)
-    : _5gbc_stream_iface(std::move(flute_if)), _cfg(cfg), _delivery_protocol(protocol), _base(std::move(base)),
-      _io_service(io_service), _cache(cache), _flute_thread{} {
+MBMS_RT::ContentStream::ContentStream(
+    std::string flute_if, boost::asio::io_service &io_service,
+    CacheManagement &cache, DeliveryProtocol protocol, const libconfig::Config &cfg,
+    std::string use_pcap_file
+    )
+    : _5gbc_stream_iface(std::move(flute_if))
+    , _cfg(cfg)
+    , _delivery_protocol(protocol)
+    , _io_service(io_service)
+    , _cache(cache)
+    , _flute_thread{} 
+    , _use_pcap_file( std::move(use_pcap_file)) 
+{
 }
 
 MBMS_RT::ContentStream::~ContentStream() {
@@ -99,36 +111,38 @@ auto MBMS_RT::ContentStream::configure_5gbc_delivery_from_sdp(const std::string 
 auto MBMS_RT::ContentStream::flute_file_received(std::shared_ptr<LibFlute::File> file) -> void {
   spdlog::info("ContentStream: {} (TOI {}, MIME type {}) has been received at {}",
                file->meta().content_location, file->meta().toi, file->meta().content_type, file->received_at());
-  if (file->meta().content_location != "index.m3u8") { // ignore generated manifests
-    std::string content_location = file->meta().content_location;
-    // DASH: Add BaseURl to the content location of the received segments otherwise we do not have a cache match later
-    if (_delivery_protocol == MBMS_RT::DeliveryProtocol::DASH) {
-      content_location = _base_path + content_location;
-    }
 
-    //if this is an MPD also update our internal representation of the MPD
-    if (file->meta().content_location.find(".mpd") != std::string::npos) {
-      _cache.add_item(std::make_shared<CachedFile>(
-          _base_path + "manifest.mpd", file->received_at(), std::move(file))
-      );
-    } else {
-      _cache.add_item(std::make_shared<CachedFile>(
-          content_location, file->received_at(), std::move(file))
-      );
-    }
+  Poco::URI item_uri(file->meta().content_location); 
+  auto path = item_uri.getPathEtc();
 
-  }
+  path.erase(0, 1);
+  spdlog::info("path: {}", path);
+
+  std::string content_location = path;
+  _cache.add_item(std::make_shared<CachedFile>(
+        content_location, file->received_at(), std::move(file))
+      );
 }
 
 auto MBMS_RT::ContentStream::start() -> void {
   spdlog::info("ContentStream starting");
   if (_5gbc_stream_type == "FLUTE/UDP") {
-    spdlog::info("Starting FLUTE receiver on {}:{} for TSI {}", _5gbc_stream_mcast_addr, _5gbc_stream_mcast_port,
-                 _5gbc_stream_flute_tsi);
+    spdlog::info("Starting FLUTE receiver on {}:{} for TSI {}", 
+        _5gbc_stream_mcast_addr, _5gbc_stream_mcast_port, _5gbc_stream_flute_tsi);
+
     _flute_thread = std::thread{[&]() {
-      _flute_receiver = std::make_unique<LibFlute::Receiver>(_5gbc_stream_iface, _5gbc_stream_mcast_addr,
-                                                             atoi(_5gbc_stream_mcast_port.c_str()),
-                                                             _5gbc_stream_flute_tsi, _io_service);
+      if (_use_pcap_file == "") {
+        _flute_receiver = std::make_unique<LibFlute::Receiver>(
+          _5gbc_stream_iface, 
+          _5gbc_stream_mcast_addr, atoi(_5gbc_stream_mcast_port.c_str()), 
+          _5gbc_stream_flute_tsi, _io_service);
+      } else {
+        _flute_receiver = std::make_unique<LibFlute::PcapReceiver>(
+            _use_pcap_file, 
+            _5gbc_stream_mcast_addr, atoi(_5gbc_stream_mcast_port.c_str()), 
+            _5gbc_stream_flute_tsi, _io_service);
+      }
+
       _flute_receiver->register_completion_callback(
           boost::bind(&ContentStream::flute_file_received, this, _1)); //NOLINT
     }};

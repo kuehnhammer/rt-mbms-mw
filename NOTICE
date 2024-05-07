@@ -3,3 +3,7 @@
 - LibFlute
   Copyright (c) 2021 Klaus Kühnhammer (Österreichische Rundfunksender GmbH & Co KG)
   Licensed under 5G-MAG terms (https://www.5g-mag.com/reference-tools)
+
+- base64 (https://github.com/tobiaslocker/base64/)
+  Copyright (c) 2019 Tobias Locker
+  Licensed under MIT terms (https://github.com/tobiaslocker/base64/blob/master/LICENSE)

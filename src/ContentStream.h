@@ -28,7 +28,10 @@
 namespace MBMS_RT {
   class ContentStream {
     public:
-      ContentStream(std::string base, std::string flute_if, boost::asio::io_service& io_service, CacheManagement& cache, DeliveryProtocol protocol, const libconfig::Config& cfg);
+      ContentStream(std::string flute_if, boost::asio::io_service& io_service, 
+          CacheManagement& cache, DeliveryProtocol protocol, const libconfig::Config& cfg,
+          std::string use_pcap_file = ""
+          );
       virtual ~ContentStream();
 
       enum class StreamType {
@@ -81,7 +84,7 @@ namespace MBMS_RT {
       std::string _5gbc_stream_mcast_port = {};
       unsigned long long _5gbc_stream_flute_tsi = 0;
       std::thread _flute_thread;
-      std::unique_ptr<LibFlute::Receiver> _flute_receiver;
+      std::unique_ptr<LibFlute::ReceiverBase> _flute_receiver;
 
       boost::asio::io_service& _io_service;
       CacheManagement& _cache;
@@ -90,5 +93,6 @@ namespace MBMS_RT {
       std::string _codecs = "<unknown>";
       unsigned long _bandwidth = 0;
       double _frame_rate = 0;
+      std::string _use_pcap_file = {};
   };
 }

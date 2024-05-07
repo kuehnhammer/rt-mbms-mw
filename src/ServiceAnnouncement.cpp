@@ -23,30 +23,42 @@
 #include "ServiceAnnouncement.h"
 #include "Service.h"
 #include "Receiver.h"
+#include "PcapReceiver.h"
 #include "seamless/SeamlessContentStream.h"
 #include "Constants.h"
 
 #include "spdlog/spdlog.h"
+#include "base64.hpp"
 #include "gmime/gmime.h"
 #include "tinyxml2.h"
 #include "cpprest/base_uri.h"
 #include <gzip/decompress.hpp>
 
 
-MBMS_RT::ServiceAnnouncement::ServiceAnnouncement(const libconfig::Config &cfg, std::string tmgi, //NOLINT
+MBMS_RT::ServiceAnnouncement::ServiceAnnouncement(const libconfig::Config &cfg, 
                                                   const std::string &mcast,
                                                   unsigned long long tsi, std::string iface,
-                                                  boost::asio::io_service &io_service, CacheManagement &cache,
+                                                  boost::asio::io_service &io_service, 
+                                                  CacheManagement &cache,
                                                   bool seamless_switching,
                                                   get_service_callback_t get_service,
-                                                  set_service_callback_t set_service)
-    : _cfg(cfg), _tmgi(std::move(tmgi)), _tsi(tsi), _iface(std::move(iface)), _io_service(io_service), _cache(cache),
-      _flute_thread{}, _seamless(seamless_switching), _get_service(std::move(get_service)),
-      _set_service(std::move(set_service)) {
-}
+                                                  set_service_callback_t set_service,
+                                                  std::string use_pcap_file
+                                                  )
+  : _cfg(cfg)
+  , _tsi(tsi)
+  , _iface(std::move(iface))
+  , _io_service(io_service)
+  , _cache(cache)
+  , _flute_thread{}
+  , _seamless(seamless_switching)
+  , _get_service(std::move(get_service))
+  , _set_service(std::move(set_service))
+  , _use_pcap_file( std::move(use_pcap_file)) 
+{ }
 
 MBMS_RT::ServiceAnnouncement::~ServiceAnnouncement() {
-  spdlog::info("Closing service announcement session with TMGI {}", _tmgi);
+  spdlog::info("Closing service announcement session");
   _flute_receiver.reset();
   if (_flute_thread.joinable()) {
     _flute_thread.join();
@@ -68,8 +80,14 @@ auto MBMS_RT::ServiceAnnouncement::start_flute_receiver(const std::string &mcast
   _mcast_port = mcast_address.substr(delim + 1);
   spdlog::info("Starting FLUTE receiver on {}:{} for TSI {}", _mcast_addr, _mcast_port, _tsi);
   _flute_thread = std::thread{[&]() {
-    _flute_receiver = std::make_unique<LibFlute::Receiver>(_iface, _mcast_addr, atoi(_mcast_port.c_str()), _tsi,
-                                                           _io_service);
+
+    if (_use_pcap_file == "") {
+      _flute_receiver = std::make_unique<LibFlute::Receiver>(_iface, _mcast_addr, atoi(_mcast_port.c_str()), _tsi,
+          _io_service);
+    } else {
+      _flute_receiver = std::make_unique<LibFlute::PcapReceiver>(_use_pcap_file, _mcast_addr, atoi(_mcast_port.c_str()), _tsi,
+          _io_service);
+    }
     _flute_receiver->register_completion_callback(
         [&](std::shared_ptr<LibFlute::File> file) { //NOLINT
           spdlog::info("{} (TOI {}) has been received",
@@ -81,6 +99,7 @@ auto MBMS_RT::ServiceAnnouncement::start_flute_receiver(const std::string &mcast
             } else {
               _raw_content = std::string(file->buffer());
             }
+            _time_offset = _flute_receiver->packet_offset();
             parse_bootstrap(_raw_content);
           }
         });
@@ -93,16 +112,14 @@ auto MBMS_RT::ServiceAnnouncement::start_flute_receiver(const std::string &mcast
  */
 auto
 MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string &str) -> void {
-  std::string bootstrap_format = ServiceAnnouncementFormatConstants::DEFAULT;
-  _cfg.lookupValue("mw.bootstrap_format", bootstrap_format);
-
   // Add all the SA items including their content to _items
-  _addServiceAnnouncementItems(str);
+  addServiceAnnouncementItems(str);
   
+  spdlog::info("Receive Service Announcement:\n{}", str);
   // Make all items available for download from the cache
   // This is needed for DASH, where master manifest and init segments are
-  // no longer transmitted through FLUTE by the BSCC
-  for (const auto &item: _items) {
+  // transmitted as part of the SA
+  for (const auto& [url, item]: _items) {
     web::uri uri(item.uri);
     auto path = uri.path();
     // make relative path: remove leading /
@@ -115,16 +132,16 @@ MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string &str) -> void {
   }
 
   // Parse MBMS envelope: <metadataEnvelope>
-  for (const auto &item: _items) {
-    if (item.content_type == ContentTypeConstants::MBMS_ENVELOPE) {
-      _handleMbmsEnvelope(item);
+  for (const auto& [url, item]: _items) {
+    if (item.content_type == "application/mbms-envelope+xml") {
+      handleMbmsEnvelope(item);
     }
   }
 
   // Parse MBMS user service description bundle
-  for (const auto &item: _items) {
-    if (item.content_type == ContentTypeConstants::MBMS_USER_SERVICE_DESCRIPTION) {
-      _handleMbmbsUserServiceDescriptionBundle(item, bootstrap_format);
+  for (const auto& [url, item]: _items) {
+    if (item.content_type == "application/mbms-user-service-description+xml") {
+      handleMbmbsUserServiceDescriptionBundle(item);
     }
   }
 }
@@ -133,7 +150,7 @@ MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string &str) -> void {
  * Iterates through the service announcement file and adds the different sections/items to the the list of _items
  * @param {std::string} str
  */
-void MBMS_RT::ServiceAnnouncement::_addServiceAnnouncementItems(const std::string &str) {
+void MBMS_RT::ServiceAnnouncement::addServiceAnnouncementItems(const std::string &str) {
   g_mime_init();
   auto stream = g_mime_stream_mem_new_with_buffer(str.c_str(), str.length());
   auto parser = g_mime_parser_new_with_stream(stream);
@@ -153,6 +170,11 @@ void MBMS_RT::ServiceAnnouncement::_addServiceAnnouncementItems(const std::strin
       if (g_mime_object_get_header(current, "Content-Location")) {
         location = std::string(g_mime_object_get_header(current, "Content-Location"));
       }
+
+      std::string encoding = "";
+      if (g_mime_object_get_header(current, "Content-Transfer-Encoding")) {
+        encoding = std::string(g_mime_object_get_header(current, "Content-Transfer-Encoding"));
+      }
       auto options = g_mime_format_options_new();
       g_mime_format_options_add_hidden_header(options, "Content-Type");
       g_mime_format_options_add_hidden_header(options, "Content-Transfer-Encoding");
@@ -160,8 +182,13 @@ void MBMS_RT::ServiceAnnouncement::_addServiceAnnouncementItems(const std::strin
       std::string content = g_mime_object_to_string(current, options);
       boost::algorithm::trim_left(content);
 
+      if (encoding == "base64") {
+        content.erase(std::remove(content.begin(), content.end(), '\n'), content.cend());
+        content = base64::from_base64(content);
+      }
+
       if (location != "") {
-        _items.emplace_back(Item{
+        _items.emplace(location, Item{
             type,
             location,
             0, 0, 0,
@@ -177,25 +204,24 @@ void MBMS_RT::ServiceAnnouncement::_addServiceAnnouncementItems(const std::strin
  * Parses the MBMS envelope
  * @param {MBMS_RT::ServiceAnnouncement::Item} item
  */
-void MBMS_RT::ServiceAnnouncement::_handleMbmsEnvelope(const MBMS_RT::ServiceAnnouncement::Item &item) {
+void MBMS_RT::ServiceAnnouncement::handleMbmsEnvelope(const MBMS_RT::ServiceAnnouncement::Item &item) {
   try {
     tinyxml2::XMLDocument doc;
     doc.Parse(item.content.c_str());
-    auto envelope = doc.FirstChildElement(ServiceAnnouncementXmlElements::METADATA_ENVELOPE);
-    for (auto *i = envelope->FirstChildElement(ServiceAnnouncementXmlElements::ITEM);
-         i != nullptr; i = i->NextSiblingElement(ServiceAnnouncementXmlElements::ITEM)) {
-      spdlog::debug("uri: {}", i->Attribute(ServiceAnnouncementXmlElements::METADATA_URI));
-      for (auto &ir: _items) {
-        if (ir.uri == i->Attribute(ServiceAnnouncementXmlElements::METADATA_URI)) {
-          std::stringstream ss_from(i->Attribute(ServiceAnnouncementXmlElements::VALID_FROM));
+    auto envelope = doc.FirstChildElement("metadataEnvelope");
+    for (auto *i = envelope->FirstChildElement("item");
+         i != nullptr; i = i->NextSiblingElement("item")) {
+      for (auto& [url, ir]: _items) {
+        if (ir.uri == i->Attribute("metadataURI")) {
+          std::stringstream ss_from(i->Attribute("validFrom"));
           struct std::tm from;
           ss_from >> std::get_time(&from, "%Y-%m-%dT%H:%M:%S.%fZ");
           ir.valid_from = mktime(&from);
-          std::stringstream ss_until(i->Attribute(ServiceAnnouncementXmlElements::VALID_UNTIL));
+          std::stringstream ss_until(i->Attribute("validUntil"));
           struct std::tm until;
           ss_until >> std::get_time(&until, "%Y-%m-%dT%H:%M:%S.%fZ");
           ir.valid_until = mktime(&until);
-          ir.version = atoi(i->Attribute(ServiceAnnouncementXmlElements::VERSION));
+          ir.version = atoi(i->Attribute("version"));
         }
       }
     }
@@ -209,33 +235,27 @@ void MBMS_RT::ServiceAnnouncement::_handleMbmsEnvelope(const MBMS_RT::ServiceAnn
  * @param {MBMS_RT::ServiceAnnouncement::Item} item
  */
 void
-MBMS_RT::ServiceAnnouncement::_handleMbmbsUserServiceDescriptionBundle(const MBMS_RT::ServiceAnnouncement::Item &item,
-                                                                       const std::string &bootstrap_format) {
+MBMS_RT::ServiceAnnouncement::handleMbmbsUserServiceDescriptionBundle(
+    const MBMS_RT::ServiceAnnouncement::Item &item) {
   try {
     tinyxml2::XMLDocument doc;
     doc.Parse(item.content.c_str());
 
-    auto bundle = doc.FirstChildElement(ServiceAnnouncementXmlElements::BUNDLE_DESCRIPTION);
-    for (auto *usd = bundle->FirstChildElement(ServiceAnnouncementXmlElements::USER_SERVICE_DESCRIPTION);
+    auto bundle = doc.FirstChildElement("bundleDescription");
+    for (auto *usd = bundle->FirstChildElement("userServiceDescription");
          usd != nullptr;
-         usd = usd->NextSiblingElement(ServiceAnnouncementXmlElements::USER_SERVICE_DESCRIPTION)) {
+         usd = usd->NextSiblingElement("userServiceDescription")) {
 
       // Create a new service
-      auto service_id = usd->Attribute(ServiceAnnouncementXmlElements::SERVICE_ID);
-      auto[service, is_new_service] = _registerService(usd, service_id);
+      auto service_id = usd->Attribute("serviceId");
+      auto [service, is_new_service] = registerService(usd, service_id);
 
       // Handle the app service element. Will read the master manifest as provided in the SA
-      auto app_service = usd->FirstChildElement(ServiceAnnouncementXmlElements::APP_SERVICE);
-      _handleAppService(app_service, service);
+      auto app_service = usd->FirstChildElement("r12:appService");
+      handleAppService(app_service, service);
 
-      // For the default format we need an alternativeContent attribute to setup the service
-      if (bootstrap_format == ServiceAnnouncementFormatConstants::FIVEG_MAG_BC_UC) {
-        _setupBy5GMagConfig(app_service, service, usd);
-      } else if (bootstrap_format == ServiceAnnouncementFormatConstants::FIVEG_MAG_LEGACY) {
-        _setupBy5GMagLegacyFormat(app_service, service, usd);
-      } else {
-        _setupByAlternativeContentElement(app_service, service, usd);
-      }
+      auto delivery_method = usd->FirstChildElement("deliveryMethod");
+      handleDeliveryMethod(delivery_method, service);
 
       if (is_new_service && service->content_streams().size() > 0) {
         _set_service(service_id, service);
@@ -253,7 +273,7 @@ MBMS_RT::ServiceAnnouncement::_handleMbmbsUserServiceDescriptionBundle(const MBM
  * @return
  */
 auto
-MBMS_RT::ServiceAnnouncement::_registerService(tinyxml2::XMLElement *usd, const std::string &service_id) -> std::tuple<std::shared_ptr<MBMS_RT::Service>, bool> {
+MBMS_RT::ServiceAnnouncement::registerService(tinyxml2::XMLElement *usd, const std::string &service_id) -> std::tuple<std::shared_ptr<MBMS_RT::Service>, bool> {
   // Register a new service if we have not seen this service id before
 
   bool is_new_service = false;
@@ -264,9 +284,9 @@ MBMS_RT::ServiceAnnouncement::_registerService(tinyxml2::XMLElement *usd, const 
   }
 
   // read the names
-  for (auto *name = usd->FirstChildElement(ServiceAnnouncementXmlElements::NAME);
-       name != nullptr; name = name->NextSiblingElement(ServiceAnnouncementXmlElements::NAME)) {
-    auto lang = name->Attribute(ServiceAnnouncementXmlElements::LANG);
+  for (auto *name = usd->FirstChildElement("name");
+       name != nullptr; name = name->NextSiblingElement("name")) {
+    auto lang = name->Attribute("lang");
     auto namestr = name->GetText();
     if (lang && namestr) {
       service->add_name(namestr, lang);
@@ -284,33 +304,46 @@ MBMS_RT::ServiceAnnouncement::_registerService(tinyxml2::XMLElement *usd, const 
  * @param app_service
  * @param service
  */
-void MBMS_RT::ServiceAnnouncement::_handleAppService(tinyxml2::XMLElement *app_service,const
-                                                     std::shared_ptr<MBMS_RT::Service> &service) {
+void MBMS_RT::ServiceAnnouncement::handleAppService(tinyxml2::XMLElement *app_service,const
+    std::shared_ptr<MBMS_RT::Service> &service) {
 
-  service->set_delivery_protocol_from_mime_type(app_service->Attribute(ServiceAnnouncementXmlElements::MIME_TYPE));
+  service->set_delivery_protocol_from_mime_type(app_service->Attribute("mimeType"));
 
-  // Now search for the content that corresponds to appServiceDescriptionURI. For instance appServiceDescriptionURI="http://localhost/watchfolder/manifest.m3u8"
-  // The attribute appServiceDescriptionURI of r12:appService references an Application Service Description which may be a Media Presentation Description fragment corresponding to a unified MPD.
-  for (const auto &item: _items) {
-    // item.uri is derived from the Content-Location of each entry in the bootstrap file. For HLS we are looking for the content of the master manifest in the bootstrap file:
-    if (item.uri == app_service->Attribute(ServiceAnnouncementXmlElements::APP_SERVICE_DESCRIPTION_URI)) {
-      web::uri uri(item.uri);
+  auto item = _items.at(app_service->Attribute("appServiceDescriptionURI"));
+  web::uri uri(item.uri);
 
-      // remove file, leave only dir
-      const std::string &path = uri.path();
-      size_t spos = path.rfind('/');
-      auto base_path = path.substr(0, spos + 1);
+  // remove file, leave only dir
+  const std::string &path = uri.path();
+  size_t spos = path.rfind('/');
+  auto base_path = path.substr(0, spos + 1);
 
-      // make relative path: remove leading /
-      if (base_path[0] == '/') {
-        base_path.erase(0, 1);
-      }
-      service->read_master_manifest(item.content, base_path);
-      _base_path = base_path;
-    }
+  // make relative path: remove leading /
+  if (base_path[0] == '/') {
+    base_path.erase(0, 1);
   }
+  service->read_master_manifest(item.content, base_path, _time_offset);
+  _base_path = base_path;
 }
 
+void MBMS_RT::ServiceAnnouncement::handleDeliveryMethod(tinyxml2::XMLElement *delivery_method,
+    const std::shared_ptr<MBMS_RT::Service> &service) 
+{
+    std::shared_ptr<ContentStream> cs = nullptr;
+    if (_seamless) {
+      cs = std::make_shared<SeamlessContentStream>(_iface, _io_service, 
+          _cache, service->delivery_protocol(), _cfg);
+    } else {
+      cs = std::make_shared<ContentStream>(_iface, _io_service, 
+          _cache, service->delivery_protocol(), _cfg, _use_pcap_file);
+    }
+
+    auto sdp_uri = delivery_method->Attribute("sessionDescriptionURI");
+    auto sdp = _items.at(sdp_uri);
+    cs->configure_5gbc_delivery_from_sdp(sdp.content);
+
+    service->add_and_start_content_stream(cs);
+}
+#if 0
 void MBMS_RT::ServiceAnnouncement::_setupBy5GMagConfig(tinyxml2::XMLElement *app_service,
                                                        const std::shared_ptr<MBMS_RT::Service> &service,
                                                        tinyxml2::XMLElement *usd) {
@@ -580,3 +613,4 @@ void MBMS_RT::ServiceAnnouncement::_setupByAlternativeContentElement(tinyxml2::X
     }
   }
 }
+#endif

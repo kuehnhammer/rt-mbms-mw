@@ -21,15 +21,18 @@
 #include "CacheItems.h"
 #include "HlsMediaPlaylist.h"
 #include <libgen.h>
+#include <boost/bind/bind.hpp>
 
 #include "spdlog/spdlog.h"
 #include "cpprest/base_uri.h"
 
-MBMS_RT::SeamlessContentStream::SeamlessContentStream(std::string base, std::string flute_if,
-                                                      boost::asio::io_service &io_service, CacheManagement &cache,
-                                                      DeliveryProtocol protocol, const libconfig::Config &cfg)
-    : ContentStream(std::move(base), std::move(flute_if), io_service, cache, protocol, cfg), _tick_interval(1),
-      _timer(io_service, _tick_interval) {
+MBMS_RT::SeamlessContentStream::SeamlessContentStream(
+    std::string flute_if, boost::asio::io_service &io_service, CacheManagement &cache,
+    DeliveryProtocol protocol, const libconfig::Config &cfg)
+    : ContentStream(std::move(flute_if), io_service, cache, protocol, cfg)
+    , _tick_interval(1)
+    , _timer(io_service, _tick_interval)
+{
   cfg.lookupValue("mw.cache.max_segments_per_stream", _segments_to_keep);
   cfg.lookupValue("mw.seamless_switching.truncate_cdn_playlist_segments", _truncate_cdn_playlist_segments);
   _timer.async_wait(boost::bind(&SeamlessContentStream::tick_handler, this)); //NOLINT

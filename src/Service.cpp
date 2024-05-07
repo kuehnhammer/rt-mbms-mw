@@ -33,12 +33,12 @@ auto MBMS_RT::Service::add_name(const std::string &name, const std::string &lang
   _names[lang] = name;
 }
 
-auto MBMS_RT::Service::read_master_manifest(const std::string &manifest, const std::string &base_path) -> void {
-  spdlog::debug("service: master manifest contents:\n{}, base path {}", manifest, base_path);
+auto MBMS_RT::Service::read_master_manifest(const std::string &manifest, const std::string &base_path, size_t time_offset) -> void {
+  spdlog::debug("service: master manifest contents:\n{}, base path {}, time offset {} secs", manifest, base_path, time_offset);
   if (_delivery_protocol == DeliveryProtocol::HLS) {
     _hls_primary_playlist = HlsPrimaryPlaylist(manifest, base_path);
   } else if(_delivery_protocol == DeliveryProtocol::DASH) {
-    _dash_manifest = DashManifest(manifest, base_path);
+    _dash_manifest = DashManifest(manifest, time_offset);
   }
 
   _manifest_path =
@@ -85,7 +85,7 @@ auto MBMS_RT::Service::add_and_start_content_stream(std::shared_ptr<ContentStrea
     }
     _manifest = pl.to_string();
   } else if(_delivery_protocol == DeliveryProtocol::DASH) {
-    _manifest = _dash_manifest.content;
+    _manifest = _dash_manifest.content();
   }
 }
 

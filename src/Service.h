@@ -35,7 +35,8 @@ namespace MBMS_RT {
 
       void add_name(const std::string& name, const std::string& lang);
       void add_and_start_content_stream(std::shared_ptr<ContentStream> s);
-      void read_master_manifest(const std::string& manifest, const std::string& base_path);
+      void read_master_manifest(const std::string& manifest, const std::string& base_path,
+          size_t time_offset);
 
       const std::map<std::string, std::string>& names() const { return _names; };
       const std::map<std::string, std::shared_ptr<ContentStream>>& content_streams() const { return _content_streams; };

@@ -12,8 +12,8 @@ INCLUDE(CPack)
 # Finds the pkg-config executable and adds the pkg_get_variable(), pkg_check_modules() and pkg_search_module() commands.
 include(FindPkgConfig)
 
-# C++ 17 required to build this target
-set(CMAKE_CXX_STANDARD 17)
+# C++ 20 required to build this target
+set(CMAKE_CXX_STANDARD 20)
 
 # Boolean describing whether the value of CXX_STANDARD is a requirement
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
@@ -24,6 +24,7 @@ set(CMAKE_CXX_FLAGS_RELEASE_INIT "-Wall -O3")
 
 # Find packages and load its package-specific details.
 find_package(spdlog REQUIRED)
+find_package(Poco REQUIRED Net)
 find_package(cpprestsdk REQUIRED)
 find_package(PkgConfig REQUIRED)
 
@@ -42,6 +43,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/src
     SYSTEM
     ${SPDLOG_INCLUDEDIR}
+    ${PROJECT_SOURCE_DIR}/lib
     ${PROJECT_SOURCE_DIR}/lib/gzip-hpp/include
     PkgConfig::GMIME
     PkgConfig::TINYXML
@@ -54,11 +56,10 @@ configure_file("include/Version.h.in" "Version.h")
 set(CMAKE_CXX_CLANG_TIDY clang-tidy --format-style=google --checks=clang-diagnostic-*,clang-analyzer-*,-*,bugprone*,modernize*,performance*)
 
 # Adds an executable target called mw to be built from the source files listed in the command invocation
-add_executable(mw src/main.cpp src/RpRestClient.cpp src/Service.cpp src/ServiceAnnouncement.cpp
+add_executable(mw src/main.cpp src/Service.cpp src/ServiceAnnouncement.cpp
         src/CacheManagement.cpp src/ContentStream.cpp src/RestHandler.cpp src/Middleware.cpp
         src/HlsMediaPlaylist.cpp src/HlsPrimaryPlaylist.cpp src/DashManifest.cpp
         src/seamless/CdnClient.cpp src/seamless/CdnFile.cpp src/seamless/SeamlessContentStream.cpp src/seamless/Segment.cpp
-        src/on_demand/ControlSystemRestClient.cpp
         )
 # Specify libraries or flags to use when linking a given target and/or its dependents
 target_link_libraries( mw
@@ -72,6 +73,7 @@ target_link_libraries( mw
     crypto
     PkgConfig::GMIME
     PkgConfig::TINYXML
+    Poco::Net
 )
 
 # Generates installation rules for the project

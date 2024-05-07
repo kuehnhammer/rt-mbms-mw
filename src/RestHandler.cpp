@@ -93,7 +93,7 @@ void MBMS_RT::RestHandler::get(http_request message) {
       if (paths[1] == "service_announcement") {
         if (*_service_announcement_h) {
           std::vector<value> items;
-          for (const auto& item : (*_service_announcement_h)->items()) {
+          for (const auto& [url, item] : (*_service_announcement_h)->items()) {
             if (item.content_type != "application/mbms-envelope+xml") {
               value i;
               i["location"] = value(item.uri);
@@ -185,7 +185,7 @@ void MBMS_RT::RestHandler::get(http_request message) {
       }
     } else {
       auto path = uri.to_string().erase(0,1); // remove leading /
-      spdlog::debug("checking for file at path {}", path );
+      spdlog::info("REST API checking for file at path {}", path );
 
       auto it = _cache.item_map().find(path);
       if (it != _cache.item_map().cend()) {

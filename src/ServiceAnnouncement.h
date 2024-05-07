@@ -34,11 +34,12 @@ namespace MBMS_RT {
     typedef std::function<std::shared_ptr<Service>(const std::string &service_id)> get_service_callback_t;
     typedef std::function<void(const std::string &service_id, std::shared_ptr<Service>)> set_service_callback_t;
 
-    ServiceAnnouncement(const libconfig::Config &cfg, std::string tmgi, const std::string &mcast,
+    ServiceAnnouncement(const libconfig::Config &cfg, const std::string &mcast,
                         unsigned long long tsi,
                         std::string iface, boost::asio::io_service &io_service, CacheManagement &cache,
                         bool seamless_switching,
-                        get_service_callback_t get_service, set_service_callback_t set_service);
+                        get_service_callback_t get_service, set_service_callback_t set_service,
+                        std::string use_pcap_file = "");
 
     virtual ~ServiceAnnouncement();
 
@@ -51,7 +52,7 @@ namespace MBMS_RT {
       std::string content;
     };
 
-    const std::vector<Item> &items() const { return _items; };
+    const std::map<std::string, Item> &items() const { return _items; };
 
     const std::string &content() const { return _raw_content; };
 
@@ -62,13 +63,27 @@ namespace MBMS_RT {
     void start_flute_receiver(const std::string &mcast_address);
 
   private:
+    void addServiceAnnouncementItems(const std::string &str);
+    void handleMbmsEnvelope(const Item &item);
+    void handleMbmbsUserServiceDescriptionBundle(const Item &item); 
+
+    std::tuple<std::shared_ptr<MBMS_RT::Service>, bool>
+      registerService(tinyxml2::XMLElement *usd, const std::string &service_id);
+
+    void handleAppService(tinyxml2::XMLElement *app_service, 
+        const std::shared_ptr<Service> &service);
+
+    void handleDeliveryMethod(tinyxml2::XMLElement *app_service, 
+        const std::shared_ptr<Service> &service);
 
     get_service_callback_t _get_service;
     set_service_callback_t _set_service;
 
+    size_t _time_offset = 0;
+
     bool _seamless = false;
 
-    std::vector<Item> _items;
+    std::map<std::string, Item> _items;
 
     const libconfig::Config &_cfg;
 
@@ -83,21 +98,15 @@ namespace MBMS_RT {
     std::string _base_path;
     unsigned long long _tsi = 0;
     std::thread _flute_thread;
-    std::unique_ptr<LibFlute::Receiver> _flute_receiver;
+    std::unique_ptr<LibFlute::ReceiverBase> _flute_receiver;
 
     boost::asio::io_service &_io_service;
     CacheManagement &_cache;
 
-    void _addServiceAnnouncementItems(const std::string &str);
+    std::string _use_pcap_file = {};
 
-    void _handleMbmsEnvelope(const Item &item);
 
-    void _handleMbmbsUserServiceDescriptionBundle(const Item &item, const std::string &bootstrap_format);
 
-    std::tuple<std::shared_ptr<MBMS_RT::Service>, bool>
-    _registerService(tinyxml2::XMLElement *usd, const std::string &service_id);
-
-    void _handleAppService(tinyxml2::XMLElement *app_service, const std::shared_ptr<Service> &service);
 
     bool _setupBroadcastDelivery(tinyxml2::XMLElement *usd, std::string base, std::shared_ptr<ContentStream> cs);
 

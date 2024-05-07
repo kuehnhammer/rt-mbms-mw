@@ -17,7 +17,38 @@
 
 #include "DashManifest.h"
 
+#include "tinyxml2.h"
 #include <utility>
+#include <chrono>
+#include <sstream>
+#include "spdlog/spdlog.h"
+#include "Poco/URI.h"
 
-MBMS_RT::DashManifest::DashManifest(std::string content, std::string base_path)
-    : content(std::move(content)), base_path(std::move(base_path)) {}
+MBMS_RT::DashManifest::DashManifest(const std::string& content, size_t time_offset)
+{
+  tinyxml2::XMLDocument doc;
+  doc.Parse(content.c_str());
+
+  // strip the protocol and server from our version of the MPD, so the player
+  // loads resources from relative paths
+  auto* mpd = doc.FirstChildElement("MPD");
+  auto* base_url_element = mpd->FirstChildElement("BaseURL");
+  Poco::URI base_url(base_url_element->GetText());
+  base_url_element->SetText(base_url.getPathEtc().c_str());
+
+  std::stringstream  availability_start_time(mpd->Attribute("availabilityStartTime"));
+  spdlog::info("ast {}, time offset {}", availability_start_time.str() , time_offset);
+  std::chrono::sys_seconds ast;
+  availability_start_time >> std::chrono::parse("%FT%TZ", ast);
+  std::string adjusted = std::chrono::format("{:%FT%TZ}", ast);
+
+  spdlog::info("parsed: {}", adjusted);
+
+  tinyxml2::XMLPrinter printer;
+  doc.Print(&printer);
+
+  _content = printer.CStr();
+
+  spdlog::info("MPD base url: {}", _content);
+}
+

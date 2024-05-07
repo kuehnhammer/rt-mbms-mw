@@ -30,7 +30,7 @@
 namespace MBMS_RT {
   class SeamlessContentStream : public ContentStream{
     public:
-      SeamlessContentStream(std::string base, std::string flute_if, boost::asio::io_service& io_service, CacheManagement& cache, DeliveryProtocol protocol, const libconfig::Config& cfg);
+      SeamlessContentStream(std::string flute_if, boost::asio::io_service& io_service, CacheManagement& cache, DeliveryProtocol protocol, const libconfig::Config& cfg);
       virtual ~SeamlessContentStream();
 
       virtual StreamType stream_type() const { return StreamType::SeamlessSwitching; };

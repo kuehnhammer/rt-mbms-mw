@@ -24,14 +24,14 @@
 namespace MBMS_RT {
   class DashManifest {
   public:
-    DashManifest(std::string content, std::string base_path);
-
+    DashManifest(const std::string& content, size_t time_offset);
     DashManifest() = default;
+    virtual ~DashManifest() = default;
 
-    ~DashManifest() = default;
+    std::string content() const { return _content; };
 
-    std::string content;
-    std::string base_path;
+  private:
+    std::string _content;
   };
 }
 
