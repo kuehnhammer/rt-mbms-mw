@@ -80,6 +80,7 @@ namespace MBMS_RT {
     set_service_callback_t _set_service;
 
     size_t _time_offset = 0;
+    size_t _sa_received_at = 0;
 
     bool _seamless = false;
 

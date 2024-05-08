@@ -124,23 +124,24 @@ auto MBMS_RT::ContentStream::flute_file_received(std::shared_ptr<LibFlute::File>
       );
 }
 
-auto MBMS_RT::ContentStream::start() -> void {
-  spdlog::info("ContentStream starting");
+auto MBMS_RT::ContentStream::start(size_t time_offset) -> void {
+  spdlog::info("ContentStream starting, offset {}", time_offset);
   if (_5gbc_stream_type == "FLUTE/UDP") {
     spdlog::info("Starting FLUTE receiver on {}:{} for TSI {}", 
         _5gbc_stream_mcast_addr, _5gbc_stream_mcast_port, _5gbc_stream_flute_tsi);
 
-    _flute_thread = std::thread{[&]() {
+    _flute_thread = std::thread{[&, time_offset]() {
       if (_use_pcap_file == "") {
         _flute_receiver = std::make_unique<LibFlute::Receiver>(
           _5gbc_stream_iface, 
           _5gbc_stream_mcast_addr, atoi(_5gbc_stream_mcast_port.c_str()), 
           _5gbc_stream_flute_tsi, _io_service);
       } else {
+        spdlog::info("Applying time offset of {} ms to PCAP reader", time_offset);
         _flute_receiver = std::make_unique<LibFlute::PcapReceiver>(
             _use_pcap_file, 
             _5gbc_stream_mcast_addr, atoi(_5gbc_stream_mcast_port.c_str()), 
-            _5gbc_stream_flute_tsi, _io_service);
+            _5gbc_stream_flute_tsi, _io_service, time_offset );
       }
 
       _flute_receiver->register_completion_callback(

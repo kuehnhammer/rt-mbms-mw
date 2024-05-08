@@ -43,7 +43,7 @@ namespace MBMS_RT {
 
       bool configure_5gbc_delivery_from_sdp(const std::string& sdp);
       void read_master_manifest(const std::string& manifest);
-      void start();
+      void start(size_t time_offset = 0);
 
       virtual void flute_file_received(std::shared_ptr<LibFlute::File> file);
 

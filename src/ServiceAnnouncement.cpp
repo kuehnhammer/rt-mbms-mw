@@ -93,17 +93,19 @@ auto MBMS_RT::ServiceAnnouncement::start_flute_receiver(const std::string &mcast
           spdlog::info("{} (TOI {}) has been received",
                        file->meta().content_location, file->meta().toi);
           if (!_bootstrapped || _toi != file->meta().toi) {
-            _toi = file->meta().toi;
-            if (file->meta().content_type == "application/x-gzip") {
-              _raw_content = gzip::decompress(file->buffer(), file->length());
-            } else {
-              _raw_content = std::string(file->buffer());
+              _toi = file->meta().toi;
+              if (file->meta().content_type == "application/x-gzip") {
+                _raw_content = gzip::decompress(file->buffer(), file->length());
+              } else {
+                _raw_content = std::string(file->buffer());
+              }
+              _time_offset = _flute_receiver->packet_offset();
+              _sa_received_at = std::chrono::duration_cast<std::chrono::seconds>(
+                  std::chrono::system_clock::now().time_since_epoch()).count();
+              parse_bootstrap(_raw_content);
             }
-            _time_offset = _flute_receiver->packet_offset();
-            parse_bootstrap(_raw_content);
-          }
-        });
-  }};
+          });
+    }};
 }
 
 /**
@@ -114,8 +116,7 @@ auto
 MBMS_RT::ServiceAnnouncement::parse_bootstrap(const std::string &str) -> void {
   // Add all the SA items including their content to _items
   addServiceAnnouncementItems(str);
-  
-  spdlog::info("Receive Service Announcement:\n{}", str);
+
   // Make all items available for download from the cache
   // This is needed for DASH, where master manifest and init segments are
   // transmitted as part of the SA
@@ -341,7 +342,9 @@ void MBMS_RT::ServiceAnnouncement::handleDeliveryMethod(tinyxml2::XMLElement *de
     auto sdp = _items.at(sdp_uri);
     cs->configure_5gbc_delivery_from_sdp(sdp.content);
 
-    service->add_and_start_content_stream(cs);
+    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count();
+    service->add_and_start_content_stream(cs, now - _flute_receiver->started_at());
 }
 #if 0
 void MBMS_RT::ServiceAnnouncement::_setupBy5GMagConfig(tinyxml2::XMLElement *app_service,

@@ -53,7 +53,8 @@ auto MBMS_RT::Service::read_master_manifest(const std::string &manifest, const s
       ));
 }
 
-auto MBMS_RT::Service::add_and_start_content_stream(std::shared_ptr<ContentStream> s) -> void // NOLINT
+auto MBMS_RT::Service::add_and_start_content_stream(std::shared_ptr<ContentStream> s, 
+    size_t time_offset) -> void // NOLINT
 {
   spdlog::debug("adding stream with playlist path {}", s->playlist_path());
   if (_delivery_protocol == DeliveryProtocol::HLS) {
@@ -68,7 +69,7 @@ auto MBMS_RT::Service::add_and_start_content_stream(std::shared_ptr<ContentStrea
     }
   }
   _content_streams[s->playlist_path()] = s;
-  s->start();
+  s->start(time_offset);
 
   if (_delivery_protocol == DeliveryProtocol::HLS) {
     // recreate the manifest
