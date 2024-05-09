@@ -52,7 +52,7 @@ const char *argp_program_bug_address = "5G-MAG Reference Tools <reference-tools@
 static char doc[] = "5G-MAG-RT MBMS Middleware Process";  // NOLINT
 
 static struct argp_option options[] = {  // NOLINT
-    {"config", 'c', "FILE", 0, "Configuration file (default: /etc/5gmag-rt.conf)", 0},
+    {"config", 'c', "FILE", 0, "Configuration file (default: /etc/mbms-mw.conf)", 0},
     {"interface", 'i', "IF", 0, "IP address of the interface to bind flute receivers to (default: 192.168.180.10)", 0},
     {"log-level", 'l', "LEVEL", 0,
      "Log verbosity: 0 = trace, 1 = debug, 2 = info, 3 = warn, 4 = error, 5 = "
@@ -116,7 +116,7 @@ static Config cfg;  /**< Global configuration object. */
 auto main(int argc, char **argv) -> int {
   struct mw_arguments arguments;
   /* Default values */
-  arguments.config_file = "/etc/5gmag-rt.conf";
+  arguments.config_file = "/etc/mbms-mw.conf";
   arguments.flute_interface= "0.0.0.0";
 
   argp_parse(&argp, argc, argv, 0, nullptr, &arguments);
